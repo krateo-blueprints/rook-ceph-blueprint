@@ -1,0 +1,22 @@
+apiVersion: v2
+name: rook-ceph-cluster
+type: application
+# Stamped from the git tag at release (CHART_VERSION); appVersion is the Rook release whose CRDs this chart's objects
+# are written against (the rook-operator chart in this repository vendors it).
+version: CHART_VERSION
+appVersion: "1.21.1"
+description: A Ceph cluster for OpenStack as Rook custom resources only (CephCluster, CephBlockPool, CephClient) and the read grant the OpenStack blueprint's key copies need, as a Krateo blueprint.
+icon: https://raw.githubusercontent.com/krateo-platformops/.github/main/brand/logo.svg
+home: https://github.com/krateo-blueprints/rook-ceph-blueprint
+sources:
+  - https://github.com/krateo-blueprints/rook-ceph-blueprint
+  - https://github.com/rook/rook
+keywords:
+  - rook
+  - ceph
+  - storage
+  - openstack
+maintainers:
+  - name: krateo
+annotations:
+  krateo.io/category: storage

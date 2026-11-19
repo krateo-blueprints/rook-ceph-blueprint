@@ -1,0 +1,127 @@
+name: lint
+
+# The gates of this repository. release-tag.yaml refuses a commit with no successful run of this workflow
+# (krateo-blueprints/charts PUBLISHING.md rule 10), and a release tags a commit on main, which a pull_request run never
+# covers, so it also runs on pushes to main.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # krateo-blueprints/charts PUBLISHING.md rule 9: every reusable workflow this repository calls is pinned by
+  # commit SHA with a version comment. The shared check refuses any that is not.
+  pinned-uses:
+    permissions:
+      contents: read
+    uses: krateo-blueprints/charts/.github/workflows/pinned-uses.yaml@70095ab05f1c5dc6c8dd39d0b1fdbbc7382a841c # 1.4.3
+
+  lint-docs:
+    uses: krateo-platformops/.github/.github/workflows/lint-docs.yaml@e1d3e99215e80ae56eca4a67e9e061b2c73168b8 # 1.0.0
+
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      # Every gate exits 2 when PyYAML is missing, so a lost install fails the job instead of skipping it.
+      - name: Install PyYAML
+        run: pip install "PyYAML==6.0.2"
+
+      # The vendored Rook files are byte for byte what the pinned tag holds: the recorded digest, and (live) what
+      # GitHub serves for that tag today; the operator image is the tag's.
+      - name: Each vendored file is what the pinned Rook tag holds
+        run: python3 hack/validate-vendored.py . --live
+
+      # appVersion, the image, the krateo.io/upstream annotation, the CompositionDefinitions, the CRDs the cluster chart
+      # requires and the examples agree with hack/upstream.yaml and with each other.
+      - name: Every version names the same Rook release
+        run: python3 hack/validate-version-mirror.py .
+
+      # rook-operator renders upstream with exactly the documented changes (derived independently, compared object for
+      # object); rook-ceph-cluster renders only Rook custom resources and the read grant, with the Ceph-docs caps, and
+      # refuses what cannot work, driven with stand-in lookups for its preconditions.
+      - name: Each chart renders what it documents, and refuses what cannot work
+        run: python3 hack/validate-render.py .
+
+      # rook-ceph-cluster's defaults are what krateo-openstack-blueprint reads (pools, users, Rook's Secrets, the copy
+      # store's ServiceAccount), recorded in hack/openstack-contract.yaml and checked against its main today.
+      - name: The cluster's defaults are what the OpenStack blueprint consumes
+        run: python3 hack/validate-consumer-contract.py . --live
+
+      # The reusable release preflight runs first and gates the push; the hook refuses what it must.
+      - name: The release runs this repository's preflight before publishing anything
+        run: python3 hack/validate-release-wiring.py .
+
+      # prerelease.yaml: dispatch only, contents: read + packages: write, no reusable workflow or index step, the
+      # pre-release shape checked before push; the version scripts' table, derive and loosened copies.
+      - name: A pre-release reaches GHCR only, and a release is never a pre-release version
+        run: python3 hack/validate-prerelease-channel.py .
+
+      # charts PUBLISHING.md rule 14: no bare `helm push` / `oras push` in any workflow; the organisation's chart-push
+      # action pinned by commit; locate mode wired to its path output. The script's own cases and mutants live with it,
+      # in krateo-platformops/.github (.github/actions/chart-push/push_test.py).
+      - name: Charts are pushed only through krateo-platformops/.github's chart-push, pinned by commit
+        run: python3 hack/validate-chart-push.py .
+
+      - name: Repository-authored YAML is block style only
+        run: python3 hack/validate-yaml-block-style.py .
+
+      # rook-ceph-cluster refuses its own defaults (no consumer namespace, no OSD source), by design, so it is linted
+      # with the spec of its example Composition, which is what a user applies.
+      - name: helm lint every chart
+        run: |
+          set -euo pipefail
+          for c in blueprints/*/chart; do
+            sed -i "s/CHART_VERSION/0.0.0-ci/g" "$c/Chart.yaml"
+            name="$(basename "$(dirname "$c")")"
+            if [ -f "examples/basic/${name}.yaml" ]; then
+              python3 -c 'import sys, yaml; d = [x for x in yaml.safe_load_all(open(sys.argv[1])) if x][0]; yaml.safe_dump(d.get("spec") or {}, sys.stdout)' \
+                "examples/basic/${name}.yaml" > "/tmp/lint-${name}.yaml"
+              helm lint "$c" -f "/tmp/lint-${name}.yaml"
+            else
+              helm lint "$c"
+            fi
+          done
+
+  admission:
+    # A real API server admits what both charts render (krateo-openstack-blueprint #393, #407: offline gates passed a
+    # custom resource an API server refused). kind with Rook's CRDs applied; every rendered object dry-run server-side;
+    # three broken objects must be refused, so admission that admits anything cannot pass.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install "PyYAML==6.0.2"
+
+      # kubectl is on the runner image. kind from source at a pinned version, as krateo-openstack-blueprint's
+      # operator-admission job installs it.
+      - name: Install kind
+        run: |
+          go install sigs.k8s.io/kind@v0.27.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: An API server with Rook's CRDs admits everything the charts render, and refuses a broken object
+        run: python3 hack/validate-admission.py .

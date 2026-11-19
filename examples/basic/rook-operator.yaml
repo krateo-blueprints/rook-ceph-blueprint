@@ -1,0 +1,10 @@
+# The Rook operator and its CRDs, as a Composition of the rook-operator CompositionDefinition. Apply it first: the
+# Ceph cluster refuses to render until Rook's CRDs are served.
+---
+apiVersion: composition.krateo.io/v0-1-0
+kind: RookOperator
+metadata:
+  name: rook-operator
+  namespace: rook-ceph
+spec:
+  logLevel: INFO

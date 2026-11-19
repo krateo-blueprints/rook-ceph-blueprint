@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "rook-operator",
+  "additionalProperties": false,
+  "properties": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "",
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "logLevel": {
+      "type": "string",
+      "enum": [
+        "ERROR",
+        "WARNING",
+        "INFO",
+        "DEBUG"
+      ],
+      "description": "ROOK_LOG_LEVEL in the operator's config."
+    },
+    "resources": {
+      "type": "object",
+      "x-kubernetes-preserve-unknown-fields": true,
+      "description": "The operator container's requests and limits; empty keeps upstream's (none)."
+    },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "x-kubernetes-preserve-unknown-fields": true
+      },
+      "description": "Added to upstream's node.kubernetes.io/unreachable toleration."
+    },
+    "global": {
+      "type": "object",
+      "x-kubernetes-preserve-unknown-fields": true,
+      "description": "Injected by the Krateo installer; unused."
+    }
+  }
+}

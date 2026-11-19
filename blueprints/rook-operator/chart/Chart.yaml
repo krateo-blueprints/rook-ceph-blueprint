@@ -1,0 +1,24 @@
+apiVersion: v2
+name: rook-operator
+type: application
+# Stamped from the git tag at release (CHART_VERSION). Both charts in this repository share the repository's one
+# version line; the upstream version is appVersion (docs/release.md).
+version: CHART_VERSION
+appVersion: "1.21.1"
+description: The Rook Ceph operator and its CustomResourceDefinitions, vendored from Rook's release manifests, as a Krateo blueprint.
+icon: https://raw.githubusercontent.com/krateo-platformops/.github/main/brand/logo.svg
+home: https://github.com/krateo-blueprints/rook-ceph-blueprint
+sources:
+  - https://github.com/krateo-blueprints/rook-ceph-blueprint
+  - https://github.com/rook/rook
+keywords:
+  - rook
+  - ceph
+  - storage
+  - operator
+maintainers:
+  - name: krateo
+annotations:
+  krateo.io/category: storage
+  # The upstream release this chart vendors, byte for byte (hack/upstream.yaml, hack/validate-vendored.py).
+  krateo.io/upstream: rook/rook v1.21.1
