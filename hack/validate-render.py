@@ -15,10 +15,12 @@ rook-operator (Rook's release manifests, rendered with the changes templates/man
 rook-ceph-cluster (Rook custom resources only):
   C1. REFUSALS, each naming the value: no consumer.namespace; osd.source devices without a node label or a device
       filter; storageClass without a name; an unknown source; replication.size or mon.count below 3 without testOnly;
-      an even mon.count; no pool enabled.
+      an even mon.count; no pool enabled; a pool name that is not a Kubernetes object name; two roles
+      on one pool name.
   C2. A devices cluster: exactly one CephCluster (useAllNodes, useAllDevices false, the deviceFilter, the osd and
       prepareosd placements requiring the storage-node label, managePodBudgets), one CephBlockPool per enabled pool
-      (spec.name the pool's Ceph name, size, failure domain, requireSafeReplicaSize), one CephClient per enabled role
+      (metadata.name the pool's Ceph name and no spec.name, which Rook's CRD admits only for Ceph's built-in pools;
+      size, failure domain, requireSafeReplicaSize), one CephClient per enabled role
       with exactly the Ceph documentation's caps for OpenStack (every osd and mgr cap names a pool; none is a bare
       `profile rbd`), and the read grant: a Role allowing get on exactly rook-ceph-client-<client>... and
       rook-ceph-config, bound to the consumer's ServiceAccount in the consumer's namespace. Nothing else: no Job, no
@@ -251,7 +253,7 @@ def check_cluster_objects(label, docs, values):
     if (spec.get("mon") or {}).get("count") != values["mon"]["count"] or \
             (spec.get("mon") or {}).get("allowMultiplePerNode") != values["testOnly"]:
         fail("C2: rook-ceph-cluster (%s): mon %s" % (label, spec.get("mon")))
-    pools = {d["spec"]["name"]: d for d in docs if d["kind"] == "CephBlockPool"}
+    pools = {d["metadata"]["name"]: d for d in docs if d["kind"] == "CephBlockPool"}
     want_pools = {p["name"] for p in values["pools"].values() if p["enabled"]}
     if set(pools) != want_pools:
         fail("C2: rook-ceph-cluster (%s): pools %s, want %s" % (label, sorted(pools), sorted(want_pools)))
@@ -260,8 +262,8 @@ def check_cluster_objects(label, docs, values):
         if s.get("failureDomain") != values["replication"]["failureDomain"] or \
                 (s.get("replicated") or {}).get("size") != values["replication"]["size"] or \
                 (s.get("replicated") or {}).get("requireSafeReplicaSize") != (not values["testOnly"]) or \
-                s.get("application") != "rbd" or not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?", d["metadata"]["name"]):
-            fail("C2: rook-ceph-cluster (%s): pool %s renders %s (object %s)" % (label, n, s, d["metadata"]["name"]))
+                s.get("application") != "rbd" or "name" in s:
+            fail("C2: rook-ceph-cluster (%s): pool %s renders %s" % (label, n, s))
     clients = {d["metadata"]["name"]: d for d in docs if d["kind"] == "CephClient"}
     roles = (["cinder"] if values["pools"]["volumes"]["enabled"] else []) + \
         (["glance"] if values["pools"]["images"]["enabled"] else [])
@@ -308,6 +310,12 @@ def check_cluster(tmp):
         ("mon.count 4", merged(VALID_DEVICES, {"mon": {"count": 4}}), "even"),
         ("no pool", merged(VALID_DEVICES, {"pools": {"volumes": {"enabled": False}, "images": {"enabled": False}}}),
          "No pool"),
+        ("a pool name with '_'", merged(VALID_DEVICES, {"pools": {"volumes": {"name": "cinder_volumes"}}}),
+         "pools.volumes.name"),
+        ("a pool name starting with '.'", merged(VALID_DEVICES, {"pools": {"images": {"name": ".glance"}}}),
+         "pools.images.name"),
+        ("two roles on one pool", merged(VALID_DEVICES, {"pools": {"vms": {"enabled": True, "name": "cinder.volumes"}}}),
+         "also pools.volumes.name"),
     ]
     for label, vals, frag in refusals:
         rc, out, err = render(w, vals)

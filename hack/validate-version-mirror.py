@@ -13,6 +13,8 @@ Versioning here (docs/release.md): both charts carry the repository's one versio
      CephClient), and every one of them is in rook-operator's vendored crds.yaml.
   5. examples/basic: one Composition per chart, all at the same composition.krateo.io/v<X-Y-Z>, each of the kind
      core-provider generates from the chart name. hack/release-preflight refuses a tag other than that version.
+  6. Licensing: LICENSE is present; Rook's LICENSE is a vendored entry (so validate-vendored checks its digest and
+     what the tag serves); NOTICE names the tag, its tree URL and every vendored file at its path in both repositories.
 
 Fails when PyYAML is missing and when hack/upstream.yaml lists nothing.
 """
@@ -110,8 +112,33 @@ for s in served:
     if not re.fullmatch(r"composition\.krateo\.io/v\d+-\d+-\d+", s):
         failures.append("examples/basic: apiVersion %s is not composition.krateo.io/v<X-Y-Z>" % s)
 
+if not os.path.isfile(os.path.join(ROOT, "LICENSE")):
+    failures.append("LICENSE is missing")
+if not any(e.get("asset") == "LICENSE" and e.get("path") == "LICENSE" for e in entries):
+    failures.append("hack/upstream.yaml does not vendor Rook's LICENSE (asset LICENSE, path LICENSE), so nothing checks it")
+notice_path = os.path.join(ROOT, "NOTICE")
+notice = open(notice_path).read() if os.path.isfile(notice_path) else ""
+if not notice:
+    failures.append("NOTICE is missing or empty")
+else:
+    words = " ".join(notice.split())
+    for want in ["Rook %s" % tag, "https://github.com/%s/tree/%s" % (repo, tag), "Apache License, Version 2.0"]:
+        if want not in words:
+            failures.append("NOTICE does not name %r" % want)
+    # The file table: lines indented by two spaces holding exactly "<path here> <path upstream>".
+    rows = {tuple(l.split()) for l in notice.splitlines() if l.startswith("  blueprints/") and len(l.split()) == 2}
+    for e in entries:
+        row = ("blueprints/%s/chart/files/upstream/%s" % (e["chart"], e["asset"]), e["path"])
+        if row not in rows:
+            failures.append("NOTICE does not list %s (from %s)" % row)
+    listed = {r for r in rows if r[0].startswith("blueprints/")}
+    extra = listed - {("blueprints/%s/chart/files/upstream/%s" % (e["chart"], e["asset"]), e["path"]) for e in entries}
+    if extra:
+        failures.append("NOTICE lists %s, which hack/upstream.yaml does not vendor" % sorted(extra))
+
 if failures:
     for f in failures:
         print("FAIL: " + f)
     sys.exit(1)
-print("OK: both charts at Rook %s %s; examples at %s" % (repo, tag, ", ".join(sorted(served))))
+print("OK: both charts at Rook %s %s; examples at %s; LICENSE, and NOTICE naming the tag and %d vendored file(s)"
+      % (repo, tag, ", ".join(sorted(served)), len(entries)))

@@ -6,7 +6,8 @@
 #              read with: gh api 'repos/rook/rook/releases?per_page=30' --jq '.[]|select(.draft==false and
 #              .prerelease==false)|.tag_name+" "+.published_at'  (v1.21.1 published 2026-10-26T20:35:05Z; v1.21.2,
 #              2026-11-05T23:06:22Z, was 13 days old)
-#   asset      the file vendored, unchanged, at blueprints/<chart>/chart/files/upstream/<asset>
+#   asset      the file vendored, unchanged, at blueprints/<chart>/chart/files/upstream/<asset>. Rook's LICENSE is one:
+#              NOTICE names this tag and every asset, and validate-version-mirror refuses when they disagree
 #   path       where the asset is in the upstream repository at the tag (Rook publishes no release assets, so the
 #              file is read from the tag's tree: https://raw.githubusercontent.com/<repo>/<tag>/<path>)
 #   sha256     the asset's digest, as the tag served it when it was vendored
@@ -33,3 +34,9 @@ upstreams:
     sha256: 4bf02d607d571644cd7350b08d4322c0a0ec365a2e05fd22c13bae6d85abc8b8
     image: docker.io/rook/ceph
     container: rook-ceph-operator
+  - chart: rook-operator
+    repo: rook/rook
+    tag: v1.21.1
+    asset: LICENSE
+    path: LICENSE
+    sha256: 2a9bf3e31df6ecaec382adcc5a9dacf034a16abcf20e63b7ac4630dd9b5c52a6

@@ -31,6 +31,23 @@ ceph.validate: refuse values that cannot make a working cluster, naming the valu
 {{- if not (or $v.pools.volumes.enabled $v.pools.images.enabled) -}}
 {{- fail "\n\nNo pool is enabled: enable pools.volumes (cinder) or pools.images (glance).\n" -}}
 {{- end -}}
+{{- /*
+Rook v1.21 names a pool after its CephBlockPool's metadata.name: its CRD admits spec.name only for Ceph's built-in
+pools (.mgr, .nfs, .nvmeof, .rgw.root). So each pool name must be a Kubernetes object name, and no two may be equal.
+*/ -}}
+{{- $seen := dict -}}
+{{- range $role := list "volumes" "images" "vms" -}}
+{{- $p := index $v.pools $role -}}
+{{- if $p.enabled -}}
+{{- if or (gt (len $p.name) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $p.name)) -}}
+{{- fail (printf "\n\npools.%s.name %q: Rook names the Ceph pool after its CephBlockPool object, so the name must be a Kubernetes object name (lowercase letters, digits, '-' and '.', starting and ending with a letter or digit, at most 253 characters).\n" $role $p.name) -}}
+{{- end -}}
+{{- if hasKey $seen $p.name -}}
+{{- fail (printf "\n\npools.%s.name %q is also pools.%s.name: two roles cannot share one pool object.\n" $role $p.name (get $seen $p.name)) -}}
+{{- end -}}
+{{- $_ := set $seen $p.name $role -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 
 {{/* (dict "key" k "value" v): a required node affinity on one label, as YAML, or nothing when key is empty. */}}
@@ -44,11 +61,6 @@ requiredDuringSchedulingIgnoredDuringExecution:
           values:
             - {{ .value | quote }}
 {{- end -}}
-{{- end -}}
-
-{{/* A pool's object name: its Ceph name with every character a Kubernetes name refuses made "-". */}}
-{{- define "ceph.poolObjectName" -}}
-{{- regexReplaceAll "[^a-z0-9-]" (lower .) "-" | trimAll "-" -}}
 {{- end -}}
 
 {{/*

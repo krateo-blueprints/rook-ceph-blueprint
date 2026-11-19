@@ -34,7 +34,9 @@ object.
 - **A CephCluster.** Its OSDs come from raw block devices on labelled nodes (`useAllNodes`, `deviceFilter`, and the
   osd and prepareosd placements requiring the label), or from block-mode claims of a StorageClass. It has 3 mons, 2
   mgrs and Rook-managed PodDisruptionBudgets.
-- **One CephBlockPool per enabled pool:** `spec.name` is the Ceph name, so dotted names such as `cinder.volumes` work.
+- **One CephBlockPool per enabled pool, named as the Ceph pool:** Rook names a pool after its object, and its CRD
+  admits `spec.name` only for Ceph's built-in pools. A dotted name such as `cinder.volumes` is a valid object name; a
+  name that is not one is refused when rendering.
   Size 3 on failure domain host by default.
 - **One CephClient per consumer**, with the caps the Ceph documentation gives OpenStack ("Block Devices and
   OpenStack"):
