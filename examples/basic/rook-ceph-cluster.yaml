@@ -1,0 +1,20 @@
+# A Ceph cluster for an OpenStack install in namespace openstack, as a Composition of the rook-ceph-cluster
+# CompositionDefinition, in the rook-operator's namespace. The OSDs are the raw NVMe devices of the nodes labelled
+# storage-node=true: label your storage nodes, and match your device names (docs/usage.md). Then set the Openstack
+# Composition's storage.backend to ceph-rook and storage.ceph.sourceNamespace to rook-ceph.
+---
+apiVersion: composition.krateo.io/v0-1-0
+kind: RookCephCluster
+metadata:
+  name: rook-ceph-cluster
+  namespace: rook-ceph
+spec:
+  osd:
+    source: devices
+    devices:
+      nodeLabel:
+        key: storage-node
+        value: "true"
+      deviceFilter: "^nvme[0-9]+n[1-9]$"
+  consumer:
+    namespace: openstack
