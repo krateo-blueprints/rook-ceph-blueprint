@@ -32,6 +32,11 @@ rook-ceph-cluster (Rook custom resources only):
       present), a missing Rook CRD refuses naming it, and a namespace without Rook's rook-ceph-osd ServiceAccount
       refuses; with both present it renders; offline nothing is refused.
   C6. testOnly: replication.size 1 and mon.count 1 render, with requireSafeReplicaSize false and allowMultiplePerNode.
+  C7. CIPHERS (Rook's spec.security.cephx, #308 run A): cephx.keyType aes256k renders allowedCiphers [aes256k] and every
+      CephClient with keyType aes256k; aes renders [aes, aes256k] and aes keys. A client key the monitors do not allow
+      locks that client out, so the two must agree.
+  C3 also: the device set spreads its OSDs and their prepare jobs over the nodes (kubernetes.io/hostname, maxSkew 1,
+      DoNotSchedule): run A put two of three OSDs on one node, which a size-3 pool on failure domain host cannot use.
 
 Fails when helm or PyYAML is missing, and when a render it needs does not happen.
 """
@@ -248,6 +253,13 @@ def check_cluster_objects(label, docs, values):
         if not ok:
             fail("C3: rook-ceph-cluster (%s): storage %s, want one block-mode device set of %d from %s at %s" % (
                 label, st, sc["count"], sc["name"], sc["size"]))
+        for where, app in (("placement", "rook-ceph-osd"), ("preparePlacement", "rook-ceph-osd-prepare")):
+            tsc = ((sets[0] if sets else {}).get(where) or {}).get("topologySpreadConstraints") or []
+            good = [t for t in tsc if t.get("topologyKey") == "kubernetes.io/hostname" and t.get("maxSkew") == 1 and
+                    t.get("whenUnsatisfiable") == "DoNotSchedule" and
+                    app in sum([m.get("values") or [] for m in (t.get("labelSelector") or {}).get("matchExpressions") or []], [])]
+            if not good:
+                fail("C3: rook-ceph-cluster (%s): the device set's %s does not spread %s over the nodes: %s" % (label, where, app, tsc))
     if ((spec.get("disruptionManagement") or {}).get("managePodBudgets")) is not True:
         fail("C2: rook-ceph-cluster (%s): managePodBudgets is not on" % label)
     if (spec.get("mon") or {}).get("count") != values["mon"]["count"] or \
@@ -291,6 +303,18 @@ def check_cluster_objects(label, docs, values):
                   "namespace": values["consumer"]["namespace"]}]
     if subj != want_subj or (binding and binding[0]["roleRef"]["name"] != (role[0]["metadata"]["name"] if role else None)):
         fail("C2: rook-ceph-cluster (%s): the grant binds %s, want %s" % (label, subj, want_subj))
+    kt = values["cephx"]["keyType"]
+    want_ciphers = ["aes256k"] if kt == "aes256k" else ["aes", "aes256k"]
+    got_ciphers = ((spec.get("security") or {}).get("cephx") or {}).get("allowedCiphers")
+    if got_ciphers != want_ciphers:
+        fail("C7: rook-ceph-cluster (%s): allowedCiphers %s, want %s for cephx.keyType %s" % (label, got_ciphers, want_ciphers, kt))
+    for n, d in clients.items():
+        got_kt = ((d["spec"].get("security") or {}).get("cephx") or {}).get("keyType")
+        if got_kt != kt:
+            fail("C7: rook-ceph-cluster (%s): client %s keyType %s, want %s" % (label, n, got_kt, kt))
+        elif got_kt not in (got_ciphers or []):
+            fail("C7: rook-ceph-cluster (%s): client %s's key type %s is not an allowed cipher %s" % (label, n, got_kt, got_ciphers))
+    count("C7")
     count("C2")
 
 
@@ -328,7 +352,8 @@ def check_cluster(tmp):
              ("vms on", merged(VALID_DEVICES, {"pools": {"vms": {"enabled": True}}})),
              ("images off", merged(VALID_DEVICES, {"pools": {"images": {"enabled": False}}})),
              ("testOnly, size 1, one mon", merged(VALID_DEVICES, {"testOnly": True, "replication": {"size": 1},
-                                                                  "mon": {"count": 1}}))]
+                                                                  "mon": {"count": 1}})),
+             ("cephx aes", merged(VALID_DEVICES, {"cephx": {"keyType": "aes"}}))]
     for label, vals in cases:
         rc, out, err = render(w, vals)
         if rc != 0:

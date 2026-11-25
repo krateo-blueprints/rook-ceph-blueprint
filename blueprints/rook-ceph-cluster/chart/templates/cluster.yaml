@@ -26,6 +26,17 @@ spec:
   mgr:
     count: {{ int $v.mgr.count }}
     allowMultiplePerNode: {{ $v.testOnly }}
+  # The monitors' cipher list (Rook's controller runs `ceph mon set auth_allowed_ciphers`): only aes256k, or both for
+  # older clients (cephx.keyType, values.yaml).
+  security:
+    cephx:
+      allowedCiphers:
+        {{- if eq $v.cephx.keyType "aes256k" }}
+        - aes256k
+        {{- else }}
+        - aes
+        - aes256k
+        {{- end }}
   dashboard:
     enabled: false
   crashCollector:
@@ -76,6 +87,31 @@ spec:
       - name: osd
         count: {{ int $v.osd.storageClass.count }}
         portable: true
+        # One OSD per node at most a skew of one: with failure domain host, the OSDs must span the nodes, or a size-3
+        # pool cannot place its copies (#308 run A: two of three OSDs landed on one node). Rook's cluster-on-pvc example
+        # spreads them the same way; DoNotSchedule here, because an unspread OSD is a pool that cannot be written.
+        placement:
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - rook-ceph-osd
+        preparePlacement:
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - rook-ceph-osd-prepare
         volumeClaimTemplates:
           - metadata:
               name: data

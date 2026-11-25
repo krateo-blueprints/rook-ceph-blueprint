@@ -82,9 +82,9 @@ stand-in `helm` and `curl`, and mutates it. Here, `hack/validate-chart-push.py` 
 
 ## Bumping the Rook version
 
-1. Choose the newest Rook release at least two weeks old on the day you write the pin. Read the dates with
+1. Choose the newest Rook release ("Choosing the Rook version" below). Read the dates with
    `gh api 'repos/rook/rook/releases?per_page=30' --jq '.[]|select(.draft==false and .prerelease==false)|.tag_name+" "+.published_at'`,
-   and record the command and its date in `hack/upstream.yaml`'s header.
+   and record the command, its date and the reason in `hack/upstream.yaml`'s header.
 2. Download `deploy/examples/{crds,common,operator}.yaml` at the new tag
    (`https://raw.githubusercontent.com/rook/rook/<tag>/deploy/examples/<file>`), and replace each
    `blueprints/rook-operator/chart/files/upstream/<file>` with it, unchanged.
@@ -95,3 +95,10 @@ stand-in `helm` and `curl`, and mutates it. Here, `hack/validate-chart-push.py` 
    - `hack/validate-render.py` fails if a manifest changed shape in a way the render template does not handle (a
      renamed container, a namespace written another way, new CSI objects).
    - `hack/validate-admission.py` fails if the new CRDs refuse what rook-ceph-cluster renders.
+
+## Choosing the Rook version
+
+Pin the newest Rook release. No release is pinned before this repository's gates and a live run (a Ceph cluster
+HEALTH_OK, the operator Running without restarts) pass on it, so the live run, not the release's age, is what admits
+it. Until 2026-11-25 the pin waited until a release was two weeks old; that rule kept v1.21.3 out, the release that
+fixes the operator's exit with the CSI operator resources off (rook/rook#18806), which #308 run A measured on v1.21.2.

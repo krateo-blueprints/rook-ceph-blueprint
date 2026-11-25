@@ -207,6 +207,20 @@
         }
       }
     },
+    "cephx": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "keyType": {
+          "type": "string",
+          "enum": [
+            "aes256k",
+            "aes"
+          ],
+          "description": "The cephx cipher: aes256k (monitors accept only aes256k, client keys aes256k) or aes (both allowed, aes client keys; for clients older than Ceph v19.2.6/v20.2.4)."
+        }
+      }
+    },
     "consumer": {
       "type": "object",
       "additionalProperties": false,

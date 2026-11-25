@@ -1,6 +1,6 @@
 # rook-ceph-blueprint
 
-Krateo blueprints for Rook (v1.21.2) and a Ceph cluster for OpenStack. rook-operator vendors Rook's release manifests
+Krateo blueprints for Rook (v1.21.3) and a Ceph cluster for OpenStack. rook-operator vendors Rook's release manifests
 (crds.yaml, common.yaml, operator.yaml at the tag) unchanged and renders them with a short, gated list of changes.
 rook-ceph-cluster renders only Rook custom resources: CephCluster, CephBlockPool, CephClient, plus the read grant the
 OpenStack blueprint's key copies need. Published to oci://ghcr.io/krateo-blueprints/charts/rook-operator and
