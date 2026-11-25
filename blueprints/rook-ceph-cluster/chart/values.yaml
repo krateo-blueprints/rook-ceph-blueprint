@@ -2,7 +2,7 @@
 # rook-operator chart (Rook's per-cluster RBAC lives there; this chart refuses another namespace on a live cluster).
 # Every input is generic: a node label and a device filter, or a StorageClass name. Nothing here names a cloud provider.
 
-# The Ceph image: Rook v1.21.1's default (deploy/examples/cluster.yaml).
+# The Ceph image: Rook v1.21.2's default (deploy/examples/cluster.yaml).
 cephVersion:
   image: quay.io/ceph/ceph:v20.2.4
   allowUnsupported: false

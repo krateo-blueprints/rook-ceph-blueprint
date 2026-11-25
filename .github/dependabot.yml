@@ -6,3 +6,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # One pull request per source (PUBLISHING.md rule 9): one at a time, pins to the same repository drift apart, and the
+    # publisher and its preflight end up at two versions (krateo-openstack-blueprint#441).
+    groups:
+      krateo-charts:
+        patterns:
+          - "krateo-blueprints/charts*"
+      krateo-platformops:
+        patterns:
+          - "krateo-platformops/.github*"

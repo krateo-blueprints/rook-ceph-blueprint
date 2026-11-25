@@ -4,7 +4,7 @@ type: application
 # Stamped from the git tag at release (CHART_VERSION); appVersion is the Rook release whose CRDs this chart's objects
 # are written against (the rook-operator chart in this repository vendors it).
 version: CHART_VERSION
-appVersion: "1.21.1"
+appVersion: "1.21.2"
 description: A Ceph cluster for OpenStack as Rook custom resources only (CephCluster, CephBlockPool, CephClient) and the read grant the OpenStack blueprint's key copies need, as a Krateo blueprint.
 icon: https://raw.githubusercontent.com/krateo-platformops/.github/main/brand/logo.svg
 home: https://github.com/krateo-blueprints/rook-ceph-blueprint

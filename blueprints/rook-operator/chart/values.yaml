@@ -1,4 +1,4 @@
-# Rook's release manifests (deploy/examples/crds.yaml, common.yaml and operator.yaml at rook/rook v1.21.1) are vendored
+# Rook's release manifests (deploy/examples/crds.yaml, common.yaml and operator.yaml at rook/rook v1.21.2) are vendored
 # unchanged in files/upstream/ and rendered by templates/manifests.yaml. These values change only what is listed here;
 # everything else is upstream's.
 
@@ -6,7 +6,7 @@ image:
   repository: docker.io/rook/ceph
   # Upstream's tag for this release. hack/validate-version-mirror.py keeps it equal to appVersion and to the image in
   # the vendored operator.yaml.
-  tag: "v1.21.1"
+  tag: "v1.21.2"
   # Empty: upstream's (no imagePullPolicy set).
   pullPolicy: ""
 

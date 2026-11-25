@@ -18,7 +18,7 @@ timestamp: 2026-11-19T00:00:00+00:00
 
 | Value | Default | Effect |
 |---|---|---|
-| `image.repository`, `image.tag` | `docker.io/rook/ceph`, `v1.21.1` | The operator image. The tag mirrors appVersion. |
+| `image.repository`, `image.tag` | `docker.io/rook/ceph`, `v1.21.2` | The operator image. The tag mirrors appVersion. |
 | `image.pullPolicy` | `""` | Empty: upstream's. |
 | `logLevel` | `INFO` | ROOK_LOG_LEVEL. |
 | `resources`, `nodeSelector` | `{}` | The operator container and pod. |
@@ -28,7 +28,7 @@ timestamp: 2026-11-19T00:00:00+00:00
 
 | Value | Default | Effect |
 |---|---|---|
-| `cephVersion.image` | `quay.io/ceph/ceph:v20.2.4` | Rook v1.21.1's default Ceph. |
+| `cephVersion.image` | `quay.io/ceph/ceph:v20.2.4` | Rook v1.21.2's default Ceph. |
 | `dataDirHostPath` | `/var/lib/rook` | Mon and Rook configuration on each node, when mons have no StorageClass. |
 | `mon.count` | `3` | Odd; at least 3 unless `testOnly`. |
 | `mon.storageClassName`, `mon.size` | `""`, `10Gi` | A claim per mon from a file-mode class, instead of the host path. |
