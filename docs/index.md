@@ -1,7 +1,7 @@
 ---
 type: Component
 title: rook-ceph-blueprint
-description: Krateo blueprints for the Rook operator (v1.21.2, vendored from Rook's release manifests) and a Ceph cluster for OpenStack as Rook custom resources only.
+description: Krateo blueprints for the Rook operator (v1.21.3, vendored from Rook's release manifests) and a Ceph cluster for OpenStack as Rook custom resources only.
 resource: rook-ceph
 tags:
   - krateo

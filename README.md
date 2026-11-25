@@ -2,7 +2,7 @@
 
 ## What is this
 
-Krateo blueprints for [Rook](https://github.com/rook/rook) **v1.21.2** and a Ceph cluster for OpenStack, as two
+Krateo blueprints for [Rook](https://github.com/rook/rook) **v1.21.3** and a Ceph cluster for OpenStack, as two
 Compositions:
 
 - **rook-operator**: Rook's CRDs and operator, from Rook's release manifests (`deploy/examples/crds.yaml`,

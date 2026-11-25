@@ -17,6 +17,9 @@ metadata:
 spec:
   caps:
 {{ include "ceph.clientCaps" (list $ $c) | indent 4 }}
+  security:
+    cephx:
+      keyType: {{ $v.cephx.keyType }}
 {{- end }}
 ---
 # The read grant the OpenStack blueprint's copy store needs in this namespace: get on exactly the client Secrets and on

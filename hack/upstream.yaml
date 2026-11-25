@@ -2,10 +2,10 @@
 # place a version is bumped (docs/release.md, "Bumping an upstream version"). One entry per vendored file.
 #   chart      the blueprint directory under blueprints/ (chart in chart/, CompositionDefinition beside it)
 #   repo       the upstream GitHub repository
-#   tag        the upstream release tag. Pinned 2026-11-25T01:20Z to the newest Rook release at least two weeks old,
+#   tag        the upstream release tag. Pinned 2026-11-25 to v1.21.3, the newest Rook release (docs/release.md, "Choosing the Rook version"),
 #              read with: gh api 'repos/rook/rook/releases?per_page=30' --jq '.[]|select(.draft==false and
-#              .prerelease==false)|.tag_name+" "+.published_at'  (v1.21.2 published 2026-11-05T23:06:22Z; v1.21.3,
-#              2026-11-24T18:31:47Z, was 1 day old)
+#              .prerelease==false)|.tag_name+" "+.published_at'  (v1.21.3 published 2026-11-24T18:31:47Z: it fixes the operator's
+#              exit when the CSI operator resources are off, rook/rook#18806, measured in #308 run A on v1.21.2)
 #   asset      the file vendored, unchanged, at blueprints/<chart>/chart/files/upstream/<asset>. Rook's LICENSE is one:
 #              NOTICE names this tag and every asset, and validate-version-mirror refuses when they disagree
 #   path       where the asset is in the upstream repository at the tag (Rook publishes no release assets, so the
@@ -16,27 +16,27 @@
 upstreams:
   - chart: rook-operator
     repo: rook/rook
-    tag: v1.21.2
+    tag: v1.21.3
     asset: crds.yaml
     path: deploy/examples/crds.yaml
-    sha256: 09f50995af37c7ff25ab665beee63e0a7cd7d60e76afd2c610e33807a853bf5c
+    sha256: a60aecde1f2ed6bf5add699c26cf6a468869367fda6cb55cfc97f5174fe32a96
   - chart: rook-operator
     repo: rook/rook
-    tag: v1.21.2
+    tag: v1.21.3
     asset: common.yaml
     path: deploy/examples/common.yaml
     sha256: 9b518fd1b05bd720a8fcf98a209b9b4ce551ad7b1ed811f0a9c200f74316df7d
   - chart: rook-operator
     repo: rook/rook
-    tag: v1.21.2
+    tag: v1.21.3
     asset: operator.yaml
     path: deploy/examples/operator.yaml
-    sha256: fc1f54f17368ac30bb0ebc50e45b9c2fa00a5cfdfea4f4eeef9c8918b38e8eb4
+    sha256: 81553818792c1894cdbf1bfa0ed4d18aff0300a822846108b2893b7f0da1d9b3
     image: docker.io/rook/ceph
     container: rook-ceph-operator
   - chart: rook-operator
     repo: rook/rook
-    tag: v1.21.2
+    tag: v1.21.3
     asset: LICENSE
     path: LICENSE
     sha256: 2a9bf3e31df6ecaec382adcc5a9dacf034a16abcf20e63b7ac4630dd9b5c52a6

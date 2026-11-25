@@ -2,7 +2,7 @@
 # rook-operator chart (Rook's per-cluster RBAC lives there; this chart refuses another namespace on a live cluster).
 # Every input is generic: a node label and a device filter, or a StorageClass name. Nothing here names a cloud provider.
 
-# The Ceph image: Rook v1.21.2's default (deploy/examples/cluster.yaml).
+# The Ceph image: Rook v1.21.3's default (deploy/examples/cluster.yaml).
 cephVersion:
   image: quay.io/ceph/ceph:v20.2.4
   allowUnsupported: false
@@ -75,6 +75,17 @@ replication:
 clients:
   cinder: cinder
   glance: glance
+
+# The cephx cipher (Ceph 20 tentacle, Rook's spec.security.cephx), set by Rook's controller:
+#   aes256k  the monitors accept only aes256k (CephCluster allowedCiphers) and every CephClient's key is aes256k. A
+#            fresh Ceph 20 cluster still allows the legacy aes, which Ceph reports as HEALTH_WARN
+#            AUTH_INSECURE_KEYS_ALLOWED and AUTH_INSECURE_KEYS_CREATABLE. Every client must support aes256k: Ceph
+#            libraries from v19.2.6 or v20.2.4 (the OpenStack 2026.1 images carry 20.2.4, measured 2026-11-25), and
+#            no kernel RBD or CephFS mount older than Linux 7.0. OpenStack uses librbd, and this chart runs no CSI.
+#   aes      for older clients: both ciphers allowed (Rook's own default) and aes client keys; Ceph reports the two
+#            warnings above.
+cephx:
+  keyType: aes256k
 
 # The OpenStack install that copies the keys: its namespace and the ServiceAccount of its copy store
 # (<credentials.store>-ceph-reader). This chart grants exactly that ServiceAccount get on the client Secrets and on
