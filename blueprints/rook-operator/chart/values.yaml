@@ -1,0 +1,25 @@
+# Rook's release manifests (deploy/examples/crds.yaml, common.yaml and operator.yaml at rook/rook v1.21.2) are vendored
+# unchanged in files/upstream/ and rendered by templates/manifests.yaml. These values change only what is listed here;
+# everything else is upstream's.
+
+image:
+  repository: docker.io/rook/ceph
+  # Upstream's tag for this release. hack/validate-version-mirror.py keeps it equal to appVersion and to the image in
+  # the vendored operator.yaml.
+  tag: "v1.21.2"
+  # Empty: upstream's (no imagePullPolicy set).
+  pullPolicy: ""
+
+# ROOK_LOG_LEVEL in the operator's config: ERROR, WARNING, INFO (upstream's) or DEBUG.
+logLevel: INFO
+
+# Empty: upstream's requests and limits (none).
+resources: {}
+
+nodeSelector: {}
+
+# Added to upstream's toleration of node.kubernetes.io/unreachable (5 s).
+tolerations: []
+
+# Injected by the Krateo installer when this chart is pinned as a component; unused by the templates.
+global: {}

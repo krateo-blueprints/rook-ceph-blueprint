@@ -1,0 +1,90 @@
+# A Ceph cluster for OpenStack, as Rook custom resources only: no Job, no script. Install it in the namespace of the
+# rook-operator chart (Rook's per-cluster RBAC lives there; this chart refuses another namespace on a live cluster).
+# Every input is generic: a node label and a device filter, or a StorageClass name. Nothing here names a cloud provider.
+
+# The Ceph image: Rook v1.21.2's default (deploy/examples/cluster.yaml).
+cephVersion:
+  image: quay.io/ceph/ceph:v20.2.4
+  allowUnsupported: false
+
+# Where each node keeps the mons' and Rook's configuration when mons have no StorageClass.
+dataDirHostPath: /var/lib/rook
+
+mon:
+  # Odd, at least 3 (quorum survives one loss). 1 only with testOnly.
+  count: 3
+  # Empty: each mon keeps its data in dataDirHostPath on its node. A StorageClass name (file mode): each mon gets a
+  # claim of `size` from it.
+  storageClassName: ""
+  size: 10Gi
+
+mgr:
+  # 2: one active, one standby.
+  count: 2
+
+osd:
+  # Where the OSDs' disks come from:
+  #   devices       raw block devices on the nodes carrying osd.devices.nodeLabel, chosen by osd.devices.deviceFilter.
+  #                 Bare-metal storage nodes; on a test cluster, a node pool with local NVMe SSDs attached as raw block
+  #                 devices.
+  #   storageClass  one block-mode claim per OSD from osd.storageClass.name (any provisioner that serves volumeMode
+  #                 Block: a local-volume provisioner on bare metal, a cloud disk class elsewhere).
+  source: devices
+  devices:
+    # The node label that marks storage nodes. Required with source devices.
+    nodeLabel:
+      key: ""
+      value: ""
+    # A regular expression over each storage node's device names (Rook's deviceFilter, e.g. ^nvme[0-9]+n[1-9]$).
+    # Required with source devices. Devices with a partition table or a filesystem are skipped by Rook.
+    deviceFilter: ""
+  storageClass:
+    name: ""
+    count: 3
+    size: 100Gi
+
+# Placement of every Ceph daemon (mons, mgrs, OSDs): a node label (empty: any node) and added tolerations.
+placement:
+  nodeLabel:
+    key: ""
+    value: ""
+  tolerations: []
+
+# The RBD pools, named as the OpenStack blueprint's storage.ceph.pools names them. vms holds nova's ephemeral disks,
+# off until nova consumes Ceph (#308 P4).
+pools:
+  volumes:
+    name: cinder.volumes
+    enabled: true
+  images:
+    name: glance.images
+    enabled: true
+  vms:
+    name: vms
+    enabled: false
+
+# Replicas per object, and the failure domain they are spread over. size 3 keeps writing with one domain lost
+# (min_size 2). Less than 3 only with testOnly.
+replication:
+  size: 3
+  failureDomain: host
+
+# The Ceph users, named as the OpenStack blueprint's storage.ceph.clients names them. Each is a CephClient with the caps
+# the Ceph documentation gives OpenStack ("Block Devices and OpenStack"): cinder on volumes (and vms), read-only on
+# images; glance on images. Rook mints each key into Secret rook-ceph-client-<name>, key userKey.
+clients:
+  cinder: cinder
+  glance: glance
+
+# The OpenStack install that copies the keys: its namespace and the ServiceAccount of its copy store
+# (<credentials.store>-ceph-reader). This chart grants exactly that ServiceAccount get on the client Secrets and on
+# rook-ceph-config (mon_host), in this namespace. Required.
+consumer:
+  namespace: ""
+  serviceAccount: openstack-credentials-ceph-reader
+
+# A single-node or throwaway cluster: allows replication.size and mon.count below 3. Never for data you keep.
+testOnly: false
+
+# Injected by the Krateo installer when this chart is pinned as a component; unused by the templates.
+global: {}

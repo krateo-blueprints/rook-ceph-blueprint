@@ -1,0 +1,67 @@
+{{- /*
+Rook's release manifests, files/upstream/{crds,common,operator}.yaml at rook/rook v1.21.1, rendered with exactly these
+changes (docs/overview.md; hack/validate-render.py derives the same result from the upstream files independently and
+compares):
+  - the Namespace object is not rendered: the release's namespace already exists, and Helm owns no Namespace;
+  - every `namespace: rook-ceph` field (Rook marks each one `# namespace:operator` or `# namespace:cluster`) becomes the
+    release's namespace. Rook's per-cluster RBAC in common.yaml (the rook-ceph-osd, -mgr, -cmd-reporter and -purge-osd
+    ServiceAccounts and their Roles) is therefore in this namespace, which is why the rook-ceph-cluster chart must be
+    installed in it too (it refuses otherwise);
+  - each CustomResourceDefinition carries helm.sh/resource-policy: keep, so removing this release never deletes the
+    CRDs, and with them every CephCluster and its data in the cluster;
+  - no CSI: OpenStack reaches Ceph with librbd (qemu, cinder-volume, glance), never with Kubernetes volumes, so
+    ROOK_CREATE_CSI_OPERATOR_RESOURCES is "false" and the ceph-csi-operator objects (the csi.ceph.io OperatorConfig and
+    Drivers, and the rook-csi-operator-image-set-configmap ConfigMap) are not rendered: their CRDs ship in
+    csi-operator.yaml, which this chart does not vendor;
+  - ROOK_LOG_LEVEL, and the operator Deployment's image, pull policy, resources, nodeSelector and added tolerations,
+    from values.
+*/ -}}
+{{- $ns := .Release.Namespace }}
+{{- $v := .Values }}
+{{- range $file := list "crds.yaml" "common.yaml" "operator.yaml" }}
+{{- $raw := $.Files.Get (printf "files/upstream/%s" $file) }}
+{{- if not $raw }}
+{{- fail (printf "files/upstream/%s is missing from the chart, so there is nothing to render" $file) }}
+{{- end }}
+{{- range $doc := regexSplit "(?m)^---[ \\t]*$" $raw -1 }}
+{{- $text := regexReplaceAll "(?m)^(\\s*namespace:\\s*)rook-ceph(\\s*#.*)?$" $doc (printf "${1}%s" $ns) }}
+{{- $o := $text | fromYaml }}
+{{- if hasKey $o "Error" }}
+{{- fail (printf "files/upstream/%s: a document does not parse: %v" $file $o.Error) }}
+{{- end }}
+{{- if $o.kind }}
+{{- $drop := or (eq $o.kind "Namespace") (hasPrefix "csi.ceph.io/" ($o.apiVersion | default "")) (and (eq $o.kind "ConfigMap") (eq $o.metadata.name "rook-csi-operator-image-set-configmap")) }}
+{{- if not $drop }}
+{{- if eq $o.kind "CustomResourceDefinition" }}
+{{- $meta := $o.metadata }}
+{{- $ann := $meta.annotations | default dict }}
+{{- $_ := set $ann "helm.sh/resource-policy" "keep" }}
+{{- $_ := set $meta "annotations" $ann }}
+{{- end }}
+{{- if and (eq $o.kind "ConfigMap") (eq $o.metadata.name "rook-ceph-operator-config") }}
+{{- $_ := set $o.data "ROOK_CREATE_CSI_OPERATOR_RESOURCES" "false" }}
+{{- $_ := set $o.data "ROOK_LOG_LEVEL" (toString $v.logLevel) }}
+{{- end }}
+{{- if and (eq $o.kind "Deployment") (eq $o.metadata.name "rook-ceph-operator") }}
+{{- $pod := $o.spec.template.spec }}
+{{- $found := false }}
+{{- range $c := $pod.containers }}
+{{- if eq $c.name "rook-ceph-operator" }}
+{{- $found = true }}
+{{- $_ := set $c "image" (printf "%s:%s" $v.image.repository $v.image.tag) }}
+{{- if $v.image.pullPolicy }}{{- $_ := set $c "imagePullPolicy" $v.image.pullPolicy }}{{- end }}
+{{- if $v.resources }}{{- $_ := set $c "resources" $v.resources }}{{- end }}
+{{- end }}
+{{- end }}
+{{- if not $found }}
+{{- fail "the upstream Deployment has no container named rook-ceph-operator: the vendored manifest changed shape" }}
+{{- end }}
+{{- if $v.nodeSelector }}{{- $_ := set $pod "nodeSelector" $v.nodeSelector }}{{- end }}
+{{- if $v.tolerations }}{{- $_ := set $pod "tolerations" (concat ($pod.tolerations | default list) $v.tolerations) }}{{- end }}
+{{- end }}
+---
+{{ toYaml $o }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

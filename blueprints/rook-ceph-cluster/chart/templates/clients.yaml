@@ -1,0 +1,59 @@
+{{- $v := .Values }}
+{{- $who := list }}
+{{- if $v.pools.volumes.enabled }}{{- $who = append $who "cinder" }}{{- end }}
+{{- if $v.pools.images.enabled }}{{- $who = append $who "glance" }}{{- end }}
+{{- $secrets := list }}
+{{- range $c := $who }}
+{{- $name := index $v.clients $c }}
+{{- $secrets = append $secrets (printf "rook-ceph-client-%s" $name) }}
+---
+# client.{{ $name }}: Rook mints its key into Secret rook-ceph-client-{{ $name }} (key userKey), which the OpenStack
+# blueprint copies (credentials.items source provided).
+apiVersion: ceph.rook.io/v1
+kind: CephClient
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  caps:
+{{ include "ceph.clientCaps" (list $ $c) | indent 4 }}
+{{- end }}
+---
+# The read grant the OpenStack blueprint's copy store needs in this namespace: get on exactly the client Secrets and on
+# rook-ceph-config (mon_host), and the SelfSubjectRulesReview External Secrets Operator validates the store with.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ printf "%s-ceph-reader" $v.consumer.namespace }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    resourceNames:
+{{- range $s := append $secrets "rook-ceph-config" }}
+      - {{ $s }}
+{{- end }}
+    verbs:
+      - get
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - selfsubjectrulesreviews
+    verbs:
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ printf "%s-ceph-reader" $v.consumer.namespace }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ printf "%s-ceph-reader" $v.consumer.namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $v.consumer.serviceAccount }}
+    namespace: {{ $v.consumer.namespace }}

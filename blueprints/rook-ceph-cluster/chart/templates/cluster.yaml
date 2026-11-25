@@ -1,0 +1,90 @@
+{{- include "ceph.validate" . -}}
+{{- include "ceph.preconditions.require" (list $ (list "cephclusters.ceph.rook.io" "cephblockpools.ceph.rook.io" "cephclients.ceph.rook.io") "Install the rook-operator chart of this repository first, in this namespace: it vendors Rook's CustomResourceDefinitions and its operator, and its per-cluster RBAC is what this cluster's daemons run as.") -}}
+{{- include "ceph.preconditions.requireClusterRBAC" . -}}
+{{- $v := .Values }}
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: ceph
+  namespace: {{ .Release.Namespace }}
+spec:
+  cephVersion:
+    image: {{ $v.cephVersion.image | quote }}
+    allowUnsupported: {{ $v.cephVersion.allowUnsupported }}
+  dataDirHostPath: {{ $v.dataDirHostPath | quote }}
+  mon:
+    count: {{ int $v.mon.count }}
+    allowMultiplePerNode: {{ $v.testOnly }}
+    {{- if $v.mon.storageClassName }}
+    volumeClaimTemplate:
+      spec:
+        storageClassName: {{ $v.mon.storageClassName | quote }}
+        resources:
+          requests:
+            storage: {{ $v.mon.size | quote }}
+    {{- end }}
+  mgr:
+    count: {{ int $v.mgr.count }}
+    allowMultiplePerNode: {{ $v.testOnly }}
+  dashboard:
+    enabled: false
+  crashCollector:
+    disable: false
+  disruptionManagement:
+    # Rook keeps one PodDisruptionBudget per failure domain, so a node drain takes one OSD failure domain at a time.
+    managePodBudgets: true
+  {{- if or $v.placement.nodeLabel.key $v.placement.tolerations (eq $v.osd.source "devices") }}
+  placement:
+    {{- if or $v.placement.nodeLabel.key $v.placement.tolerations }}
+    all:
+      {{- with include "ceph.nodeAffinity" $v.placement.nodeLabel }}
+      nodeAffinity:
+{{ . | indent 8 }}
+      {{- end }}
+      {{- with $v.placement.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- if eq $v.osd.source "devices" }}
+    osd:
+      nodeAffinity:
+{{ include "ceph.nodeAffinity" $v.osd.devices.nodeLabel | indent 8 }}
+      {{- with $v.placement.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+    prepareosd:
+      nodeAffinity:
+{{ include "ceph.nodeAffinity" $v.osd.devices.nodeLabel | indent 8 }}
+      {{- with $v.placement.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  storage:
+    {{- if eq $v.osd.source "devices" }}
+    # Every node the osd placement admits (the storage-node label), and on each only the devices deviceFilter matches.
+    useAllNodes: true
+    useAllDevices: false
+    deviceFilter: {{ $v.osd.devices.deviceFilter | quote }}
+    {{- else }}
+    useAllNodes: false
+    useAllDevices: false
+    storageClassDeviceSets:
+      - name: osd
+        count: {{ int $v.osd.storageClass.count }}
+        portable: true
+        volumeClaimTemplates:
+          - metadata:
+              name: data
+            spec:
+              storageClassName: {{ $v.osd.storageClass.name | quote }}
+              volumeMode: Block
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: {{ $v.osd.storageClass.size | quote }}
+    {{- end }}

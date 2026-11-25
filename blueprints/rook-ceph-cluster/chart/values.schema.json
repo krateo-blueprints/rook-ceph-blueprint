@@ -1,0 +1,233 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "rook-ceph-cluster",
+  "additionalProperties": false,
+  "properties": {
+    "cephVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowUnsupported": {
+          "type": "boolean"
+        }
+      }
+    },
+    "dataDirHostPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mon": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "storageClassName": {
+          "type": "string",
+          "description": "Empty: dataDirHostPath on the mon's node."
+        },
+        "size": {
+          "type": "string",
+          "description": "A Kubernetes quantity.",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(Ki|Mi|Gi|Ti|Pi|k|M|G|T|P)?$"
+        }
+      }
+    },
+    "mgr": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    },
+    "osd": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "devices (raw block devices on labelled nodes) or storageClass (block-mode claims).",
+          "enum": [
+            "devices",
+            "storageClass"
+          ]
+        },
+        "devices": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "nodeLabel": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            },
+            "deviceFilter": {
+              "type": "string",
+              "description": "A regular expression over device names."
+            }
+          }
+        },
+        "storageClass": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "size": {
+              "type": "string",
+              "description": "A Kubernetes quantity.",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(Ki|Mi|Gi|Ti|Pi|k|M|G|T|P)?$"
+            }
+          }
+        }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nodeLabel": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "x-kubernetes-preserve-unknown-fields": true
+          }
+        }
+      }
+    },
+    "pools": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "volumes": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "cinder's volumes",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          }
+        },
+        "images": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "glance's images",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          }
+        },
+        "vms": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "nova's ephemeral disks (off until #308 P4)",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "replication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7
+        },
+        "failureDomain": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "clients": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cinder": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+        },
+        "glance": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+        }
+      }
+    },
+    "consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "The Openstack Composition's namespace. Required."
+        },
+        "serviceAccount": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "testOnly": {
+      "type": "boolean",
+      "description": "Allows replication.size and mon.count below 3, and several mons or mgrs on one node."
+    },
+    "global": {
+      "type": "object",
+      "x-kubernetes-preserve-unknown-fields": true
+    }
+  }
+}

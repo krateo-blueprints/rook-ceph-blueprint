@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# This repository's release preflight (krateo-blueprints/charts PUBLISHING.md rule 12). It runs from
+# krateo-blueprints/charts release-preflight.yaml, which release-tag.yaml's package-and-push job `needs:`, at the tag's
+# commit, with read-only contents and no secrets, and the version as $1. A non-zero exit means nothing is stamped,
+# pushed, indexed or released.
+#
+# What only this repository can state:
+#   - the version is plain X.Y.Z (rule 13, hack/release-version.sh; the publisher refuses anything else too, but only
+#     after GHCR has it);
+#   - examples/basic names exactly this version: core-provider serves composition.krateo.io/v<X-Y-Z> from it, and an
+#     example left at the previous version is the defect rule 12 exists for;
+#   - both charts and both CompositionDefinitions still carry the CHART_VERSION placeholder the release stamps;
+#   - each vendored upstream manifest still has the digest hack/upstream.yaml records.
+#
+# A pre-release of the commit is NOT required here. prerelease.yaml publishes X.Y.Z-main.g<sha7> to GHCR so the #309 H2
+# live tests can install a commit through Compositions before any tag, but the GKE run that consumes it lives in
+# krateo-openstack-blueprint, so whether it passed is that repository's call before it pins a release of these charts.
+#
+# Usage: hack/release-preflight X.Y.Z
+set -euo pipefail
+
+version="${1:-}"
+cd "$(dirname "$0")/.."
+
+# The release shape is decided in one place, shared with prerelease.yaml (PUBLISHING.md rule 13): a pre-release version
+# (X.Y.Z-main.g<sha7>) can never be released by a tag.
+hack/release-version.sh check release "$version" || exit 1
+served="composition.krateo.io/v${version//./-}"
+
+bad=0
+for f in examples/basic/*.yaml; do
+  while IFS= read -r line; do
+    v="${line#apiVersion: }"
+    if [ "$v" != "$served" ]; then
+      echo "::error::${f} names ${v}, but this release serves ${served}. Update the examples to ${served}, then tag."
+      bad=1
+    fi
+  done < <(grep -E '^apiVersion: composition\.krateo\.io/' "$f")
+done
+if ! grep -qsE "^apiVersion: ${served//./\\.}$" examples/basic/*.yaml; then
+  echo "::error::no example names ${served}; examples/basic must show the Compositions this release serves."
+  bad=1
+fi
+
+for f in blueprints/*/chart/Chart.yaml blueprints/*/compositiondefinition.yaml; do
+  if ! grep -qE '^\s*version: CHART_VERSION$' "$f"; then
+    echo "::error::${f} does not carry 'version: CHART_VERSION', so the tag would not stamp it."
+    bad=1
+  fi
+done
+
+# hack/upstream.yaml read without PyYAML: the reusable preflight job installs nothing, and a hook that could not run
+# its check must refuse, not pass. Its entries are flat `key: value` lines in a fixed order (chart, ..., asset, sha256).
+python3 - <<'PY' || bad=1
+import hashlib, re, sys
+text = open("hack/upstream.yaml").read()
+entries = []
+for block in re.split(r"(?m)^  - ", text)[1:]:
+    kv = dict(re.findall(r"(?m)^\s*(chart|asset|sha256):\s*(\S+)\s*$", block))
+    entries.append(kv)
+if not entries or any(set(e) != {"chart", "asset", "sha256"} for e in entries):
+    print("::error::hack/upstream.yaml could not be read as chart/asset/sha256 entries: %s" % entries)
+    sys.exit(1)
+rc = 0
+for e in entries:
+    p = "blueprints/%s/chart/files/upstream/%s" % (e["chart"], e["asset"])
+    try:
+        d = hashlib.sha256(open(p, "rb").read()).hexdigest()
+    except OSError as ex:
+        print("::error::%s: %s" % (p, ex)); rc = 1; continue
+    if d != e["sha256"]:
+        print("::error::%s has SHA-256 %s, hack/upstream.yaml records %s" % (p, d, e["sha256"])); rc = 1
+sys.exit(rc)
+PY
+
+if [ "$bad" -ne 0 ]; then
+  exit 1
+fi
+echo "release ${version}: examples serve ${served}, charts and CompositionDefinitions carry CHART_VERSION, vendored digests match"

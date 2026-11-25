@@ -1,0 +1,164 @@
+# Publishes a PRE-RELEASE of a commit: both charts pushed to GHCR at X.Y.Z-main.g<sha7> (or -dev.g<sha7> for a commit
+# not on main), and the stamped CompositionDefinitions and example Compositions as a workflow artifact, so the #309 H2
+# live tests can install a commit through Compositions before any tag exists. Every X.Y.Z tag reaches the Marketplace; a
+# pre-release must not, and here it cannot:
+#
+#   * The Marketplace lists what https://krateo-blueprints.github.io/charts/<channel>/index.yaml lists. Its only writer
+#     is krateo-blueprints/charts publish-chart.yaml, a reusable workflow that release-tag.yaml calls with
+#     CHARTS_PUBLISH_TOKEN. Nothing reads GHCR, Releases or artifacts into an index.
+#   * This workflow calls no reusable workflow, references no secret but GITHUB_TOKEN (which can write this repository's
+#     packages and nothing in krateo-blueprints/charts), and holds `contents: read`, so it cannot create a tag or a
+#     GitHub release either.
+#   * The version is a semver pre-release (hack/release-version.sh): helm resolves an OCI chart with no --version to the
+#     newest version that is NOT a pre-release, so it is installed only by its exact version (or --devel), and
+#     core-provider serves it at its own apiVersion (v0-1-0-main-gabc1234), never at the release's.
+#
+# hack/validate-prerelease-channel.py checks all of that on every pull request, and mutates this file to prove each
+# check fires. docs/release.md, "Pre-releases".
+name: prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit, branch or tag to publish. A commit on main gets -main.g<sha>; anything else -dev.g<sha>."
+        required: true
+        default: main
+      base:
+        description: "The release this precedes, X.Y.Z. Default: the version examples/basic serve."
+        required: false
+        default: ""
+
+# Exactly these two. `contents: read` is what makes a tag or a GitHub release impossible from here; `packages: write` is
+# GHCR. The gate refuses any other set, and any job-level override.
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: prerelease-${{ github.event.inputs.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      # Full history and tags: the version is derived from the release tags and origin/main. The scripts run from the
+      # commit being published, so the commit packages itself with its own logic.
+      - name: Checkout the commit to publish
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - name: Derive the pre-release version
+        env:
+          BASE: ${{ github.event.inputs.base }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          version=$(hack/release-version.sh derive "$sha" "$BASE")
+          hack/release-version.sh check prerelease "$version"
+          {
+            echo "SHA=${sha}"
+            echo "VERSION=${version}"
+            echo "SERVED=composition.krateo.io/v${version//./-}"
+            echo "OCI_REPO=oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"
+          } >> "$GITHUB_ENV"
+          echo "pre-release ${version} of ${sha}"
+
+      # The same refusal as a release: a commit no gate ran against is not worth a live test.
+      - name: The commit must have passed lint
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ok="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/lint.yaml/runs?head_sha=${SHA}&per_page=100" \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
+          if [ "${ok}" -eq 0 ]; then
+            echo "::error::lint never succeeded on ${SHA}. Dispatch lint.yaml on this commit, confirm it passes, then re-run."
+            exit 1
+          fi
+
+      - name: Install Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      # The organisation's one chart push (krateo-blueprints/charts PUBLISHING.md rule 14), in locate mode: it outputs
+      # the path of its push.sh, which the loop below runs once per chart. push.sh retries GHCR's tag read-after-write
+      # race (and only that) by pushing the same archive again once the registry serves the digest, and fails if the tag
+      # would land on another digest. Run 44279368853 failed on that race before this repository had a fix.
+      - name: Locate the shared chart push
+        id: chart-push
+        uses: krateo-platformops/.github/.github/actions/chart-push@3ff640fd0dbef64c29b7a63a88b98da7f99e8052 # 1.0.1
+
+      # Each chart and its CompositionDefinition stamped at the pre-release version, the CompositionDefinition shipped
+      # inside the archive as a release does, then pushed. The version shape is checked again here, before anything is
+      # stamped.
+      - name: Package and push both charts
+        env:
+          CHART_PUSH: ${{ steps.chart-push.outputs.path }}
+          # push.sh reads the manifest back with these, after the login above.
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          hack/release-version.sh check prerelease "${VERSION}"
+          mkdir -p pkg dist
+          for bp in blueprints/*/; do
+            name="$(basename "$bp")"
+            sed -i "s/CHART_VERSION/${VERSION}/g" "${bp}chart/Chart.yaml" "${bp}compositiondefinition.yaml"
+            grep -qx "version: ${VERSION}" "${bp}chart/Chart.yaml" \
+              || { echo "::error::${name}: Chart.yaml was not stamped with ${VERSION}"; exit 1; }
+            cp "${bp}compositiondefinition.yaml" "${bp}chart/compositiondefinition.yaml"
+            helm package "${bp}chart" --version "${VERSION}" --destination pkg
+            rm "${bp}chart/compositiondefinition.yaml"
+            cp "${bp}compositiondefinition.yaml" "dist/compositiondefinition-${name}.yaml"
+            bash "${CHART_PUSH}" "pkg/${name}-${VERSION}.tgz" "${OCI_REPO}"
+            echo "pushed ${OCI_REPO}/${name}:${VERSION}"
+          done
+
+      # The example Compositions, served at this pre-release's apiVersion, beside the stamped CompositionDefinitions.
+      - name: Stage the files a live test applies
+        run: |
+          set -euo pipefail
+          mkdir -p dist/examples
+          for f in examples/basic/*.yaml; do
+            sed -E "s#^apiVersion: composition\.krateo\.io/v[0-9]+-[0-9]+-[0-9]+[[:space:]]*\$#apiVersion: ${SERVED}#" "$f" \
+              > "dist/examples/$(basename "$f")"
+            grep -q "^apiVersion: ${SERVED}\$" "dist/examples/$(basename "$f")" \
+              || { echo "::error::$f was not restamped to ${SERVED}"; exit 1; }
+          done
+          {
+            echo "PRE-RELEASE ${VERSION}. NOT A RELEASE, NOT IN THE MARKETPLACE."
+            echo "commit: ${SHA}"
+            echo "built by: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "charts: ${OCI_REPO}/<name> --version ${VERSION}"
+            echo "served at: ${SERVED}"
+          } > dist/PRERELEASE.txt
+
+      - name: Attach them to this run
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: prerelease-${{ env.VERSION }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          {
+            echo "## Pre-release \`${VERSION}\`"
+            echo
+            echo "Not a release and not in the Marketplace index. Commit \`${SHA}\`, served at \`${SERVED}\`."
+            echo
+            echo '```console'
+            echo "gh run download ${GITHUB_RUN_ID} -R ${GITHUB_REPOSITORY} -n prerelease-${VERSION} -D ./prerelease"
+            echo "kubectl apply -n rook-ceph -f ./prerelease/compositiondefinition-rook-operator.yaml"
+            echo "kubectl apply -n rook-ceph -f ./prerelease/compositiondefinition-rook-ceph-cluster.yaml"
+            echo "kubectl apply -f ./prerelease/examples/"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,9 @@
+apiVersion: core.krateo.io/v1alpha1
+kind: CompositionDefinition
+metadata:
+  name: rook-ceph-cluster
+  namespace: rook-ceph
+spec:
+  chart:
+    url: oci://ghcr.io/krateo-blueprints/charts/rook-ceph-cluster
+    version: CHART_VERSION

@@ -1,0 +1,26 @@
+# What the OpenStack blueprint (krateo-blueprints/krateo-openstack-blueprint) expects of a Ceph cluster it consumes with
+# storage.backend ceph-rook, read from its umbrella values at the commit below. rook-ceph-cluster's defaults must agree with
+# it, so an Openstack Composition and a CephCluster both left at their defaults find each other:
+#   pools, clients   storage.ceph.pools and storage.ceph.clients
+#   rook             storage.ceph.rook: where it copies each client's key (Secret <clientSecretPrefix><client>, key
+#                    <clientKey>) and mon_host (Secret <monHostSecret>, key <monHostKey>)
+#   serviceAccount   its copy store's ServiceAccount, <credentials.store>-ceph-reader, which rook-ceph-cluster's read grant
+#                    binds
+# hack/validate-consumer-contract.py checks rook-ceph-cluster against this file, and (--live, CI) this file against the
+# OpenStack blueprint's main today.
+source:
+  repo: krateo-blueprints/krateo-openstack-blueprint
+  commit: f20fd485d7a99f0233b52741f4f934b8fc103bb9
+  file: blueprints/openstack/chart/values.yaml
+pools:
+  volumes: cinder.volumes
+  images: glance.images
+clients:
+  cinder: cinder
+  glance: glance
+rook:
+  clientSecretPrefix: rook-ceph-client-
+  clientKey: userKey
+  monHostSecret: rook-ceph-config
+  monHostKey: mon_host
+serviceAccount: openstack-credentials-ceph-reader

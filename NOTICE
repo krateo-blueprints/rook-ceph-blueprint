@@ -1,0 +1,23 @@
+Rook Ceph Blueprint
+Copyright 2026 Krateo S.r.l.
+
+This product includes software developed by The Rook Authors
+(https://github.com/rook/rook), licensed under the Apache License, Version 2.0.
+
+The following files are vendored, unchanged, from Rook v1.21.2
+(https://github.com/rook/rook/tree/v1.21.2):
+
+  blueprints/rook-operator/chart/files/upstream/crds.yaml     deploy/examples/crds.yaml
+  blueprints/rook-operator/chart/files/upstream/common.yaml   deploy/examples/common.yaml
+  blueprints/rook-operator/chart/files/upstream/operator.yaml deploy/examples/operator.yaml
+  blueprints/rook-operator/chart/files/upstream/LICENSE       LICENSE
+
+Rook's own license is kept beside them, as the LICENSE in that directory.
+hack/upstream.yaml records each file's source path and sha256 at that tag, and
+hack/validate-vendored.py checks both. Rook publishes no NOTICE file at that
+tag. The rook-operator chart renders the vendored manifests with the changes
+its templates/manifests.yaml lists, and leaves the files themselves unchanged.
+
+The charts' templates, values and schemas, the CompositionDefinitions, the CI
+gates under hack/, the examples and the documentation are original work of
+this repository, licensed under the same license.

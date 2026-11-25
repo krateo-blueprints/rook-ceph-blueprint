@@ -1,0 +1,25 @@
+# rook-ceph-blueprint
+
+Krateo blueprints for Rook (v1.21.2) and a Ceph cluster for OpenStack. rook-operator vendors Rook's release manifests
+(crds.yaml, common.yaml, operator.yaml at the tag) unchanged and renders them with a short, gated list of changes.
+rook-ceph-cluster renders only Rook custom resources: CephCluster, CephBlockPool, CephClient, plus the read grant the
+OpenStack blueprint's key copies need. Published to oci://ghcr.io/krateo-blueprints/charts/rook-operator and
+.../rook-ceph-cluster on the blueprints channel.
+
+## Shape
+- blueprints/<chart>/chart, blueprints/<chart>/compositiondefinition.yaml.
+- hack/upstream.yaml: the Rook tag, each vendored file's path and SHA-256, the operator image and container.
+- hack/openstack-contract.yaml: what krateo-openstack-blueprint reads (pools, clients, Rook's Secrets, its ServiceAccount).
+
+## Render-time changes to upstream (rook-operator)
+- no Namespace object; every namespace: rook-ceph field becomes the release namespace;
+- helm.sh/resource-policy: keep on every CRD;
+- no CSI: ROOK_CREATE_CSI_OPERATOR_RESOURCES "false", no csi.ceph.io objects;
+- ROOK_LOG_LEVEL and the operator's image, pull policy, resources, nodeSelector, tolerations from values.
+
+## Preconditions (rook-ceph-cluster)
+- Rook's CRDs served, and the rook-ceph-osd ServiceAccount in its namespace (install it where rook-operator is).
+
+## Docs
+- docs/index.md, docs/overview.md, docs/usage.md, docs/configuration.md, docs/api.md, docs/examples.md,
+  docs/release.md, docs/log.md

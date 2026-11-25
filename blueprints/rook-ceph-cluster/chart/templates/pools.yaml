@@ -1,0 +1,20 @@
+{{- $v := .Values }}
+{{- range $role := list "volumes" "images" "vms" }}
+{{- $p := index $v.pools $role }}
+{{- if $p.enabled }}
+---
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  # The Ceph pool name, as the OpenStack blueprint's storage.ceph.pools.{{ $role }} names it: Rook names the pool
+  # after this object, and its CRD admits spec.name only for Ceph's built-in pools.
+  name: {{ $p.name | quote }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  failureDomain: {{ $v.replication.failureDomain | quote }}
+  replicated:
+    size: {{ int $v.replication.size }}
+    requireSafeReplicaSize: {{ not $v.testOnly }}
+  application: rbd
+{{- end }}
+{{- end }}
