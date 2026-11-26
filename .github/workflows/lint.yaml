@@ -22,7 +22,7 @@ jobs:
     uses: krateo-blueprints/charts/.github/workflows/pinned-uses.yaml@f0bbd3da219685bafb130e77922c192558972a43 # 1.4.4
 
   lint-docs:
-    uses: krateo-platformops/.github/.github/workflows/lint-docs.yaml@3ff640fd0dbef64c29b7a63a88b98da7f99e8052 # 1.0.1
+    uses: krateo-platformops/.github/.github/workflows/lint-docs.yaml@f6185ef0a8161a4201217d6ce0953718fc736fe0 # 1.1.0
 
   gates:
     runs-on: ubuntu-latest
