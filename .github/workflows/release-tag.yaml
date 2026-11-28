@@ -36,7 +36,7 @@ jobs:
   # examples naming the served version, the CHART_VERSION placeholders and the vendored digests. Pinned like the
   # publisher, to the same release (rule 9). hack/validate-release-wiring.py keeps this chain.
   preflight:
-    uses: krateo-blueprints/charts/.github/workflows/release-preflight.yaml@f0bbd3da219685bafb130e77922c192558972a43 # 1.4.4
+    uses: krateo-blueprints/charts/.github/workflows/release-preflight.yaml@0ef7c10e78c911565607c944ce7344de63e7b6cb # 1.9.3
     with:
       version: ${{ github.ref_name }}
 
@@ -312,7 +312,7 @@ jobs:
     needs: package-and-push
     # PUBLISHING.md rule 9: pinned by full commit SHA; .github/dependabot.yml keeps it current.
     # 1.1.0 adds rule 13: the publisher itself refuses a version that is not plain X.Y.Z.
-    uses: krateo-blueprints/charts/.github/workflows/publish-chart.yaml@f0bbd3da219685bafb130e77922c192558972a43 # 1.4.4
+    uses: krateo-blueprints/charts/.github/workflows/publish-chart.yaml@0ef7c10e78c911565607c944ce7344de63e7b6cb # 1.9.3
     with:
       source_repo: ${{ github.repository }}
       git_tag: ${{ github.ref_name }}
